@@ -107,7 +107,12 @@ pip install -r requirements.txt
 cd web/backend
 ```
 
-2. **Start the Flask server**
+2. **Install dependencies**
+```bash
+pip install -r requirements.txt
+```
+
+3. **Start the Flask server**
 ```bash
 python app.py
 ```
