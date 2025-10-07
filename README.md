@@ -11,7 +11,7 @@ An AI-powered text-to-image generation system specialized in creating architectu
 
 Check out the demo video to see ArchTextGen in action:
 
-![Demo](demo.mp4)
+![Demo](demo.gif)
 
 *Watch the full demo to see how ArchTextGen generates stunning architectural images from text prompts.*
 
