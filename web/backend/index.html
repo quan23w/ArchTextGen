@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stable Diffusion API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input, textarea, button {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .parameters {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        .generated-image {
+            max-width: 100%;
+            height: auto;
+            border-radius: 5px;
+            margin-top: 15px;
+        }
+        .loading {
+            text-align: center;
+            color: #007bff;
+            font-style: italic;
+        }
+        .error {
+            color: #dc3545;
+            background-color: #f8d7da;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #f5c6cb;
+        }
+        .success {
+            color: #155724;
+            background-color: #d4edda;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #c3e6cb;
+        }
+        .status {
+            margin-bottom: 20px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏠 Stable Diffusion House Generator</h1>
+        
+        <div id="status" class="status"></div>
+        
+        <form id="generateForm">
+            <div class="form-group">
+                <label for="prompt">Prompt:</label>
+                <textarea id="prompt" placeholder="Enter your house description here..." required>Modern wooden house, 2 floors, surrounded by trees</textarea>
+            </div>
+            
+            <div class="parameters">
+                <div class="form-group">
+                    <label for="steps">Inference Steps:</label>
+                    <input type="number" id="steps" value="25" min="1" max="100">
+                </div>
+                
+                <div class="form-group">
+                    <label for="guidance">Guidance Scale:</label>
+                    <input type="number" id="guidance" value="7.0" min="1" max="20" step="0.1">
+                </div>
+                
+                <div class="form-group">
+                    <label for="width">Width:</label>
+                    <input type="number" id="width" value="512" min="256" max="1024" step="64">
+                </div>
+                
+                <div class="form-group">
+                    <label for="height">Height:</label>
+                    <input type="number" id="height" value="512" min="256" max="1024" step="64">
+                </div>
+                
+                <div class="form-group">
+                    <label for="seed">Seed (optional):</label>
+                    <input type="number" id="seed" placeholder="Leave empty for random">
+                </div>
+            </div>
+            
+            <button type="submit" id="generateBtn">Generate House Image</button>
+        </form>
+        
+        <div id="result" class="result" style="display: none;"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:5000';
+        
+        // Check API status on page load
+        window.addEventListener('load', checkAPIStatus);
+        
+        async function checkAPIStatus() {
+            const statusDiv = document.getElementById('status');
+            try {
+                const response = await fetch(`${API_BASE_URL}/health`);
+                const data = await response.json();
+                
+                if (data.status === 'healthy') {
+                    statusDiv.className = 'status success';
+                    statusDiv.innerHTML = '✅ API is running and healthy';
+                } else {
+                    statusDiv.className = 'status error';
+                    statusDiv.innerHTML = '❌ API is not responding properly';
+                }
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.innerHTML = '❌ Cannot connect to API. Make sure the Flask server is running on port 5000.';
+            }
+        }
+        
+        document.getElementById('generateForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const generateBtn = document.getElementById('generateBtn');
+            const resultDiv = document.getElementById('result');
+            
+            // Get form values
+            const prompt = document.getElementById('prompt').value;
+            const steps = parseInt(document.getElementById('steps').value);
+            const guidance = parseFloat(document.getElementById('guidance').value);
+            const width = parseInt(document.getElementById('width').value);
+            const height = parseInt(document.getElementById('height').value);
+            const seed = document.getElementById('seed').value;
+            
+            // Prepare request data
+            const requestData = {
+                prompt: prompt,
+                num_inference_steps: steps,
+                guidance_scale: guidance,
+                width: width,
+                height: height
+            };
+            
+            if (seed) {
+                requestData.seed = parseInt(seed);
+            }
+            
+            // Show loading state
+            generateBtn.disabled = true;
+            generateBtn.textContent = 'Generating...';
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<div class="loading">🎨 Generating your house image... This may take a moment.</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/generate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestData)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    // Display success result
+                    resultDiv.innerHTML = `
+                        <div class="success">✅ Image generated successfully!</div>
+                        <p><strong>Prompt:</strong> ${data.prompt}</p>
+                        <p><strong>Filename:</strong> ${data.filename}</p>
+                        <img src="data:image/png;base64,${data.image_base64}" alt="Generated house" class="generated-image">
+                        <div style="margin-top: 15px;">
+                            <strong>Parameters used:</strong><br>
+                            Steps: ${data.parameters.num_inference_steps}, 
+                            Guidance: ${data.parameters.guidance_scale}, 
+                            Size: ${data.parameters.width}x${data.parameters.height}
+                            ${data.parameters.seed ? `, Seed: ${data.parameters.seed}` : ''}
+                        </div>
+                    `;
+                } else {
+                    // Display error
+                    resultDiv.innerHTML = `<div class="error">❌ Error: ${data.error || 'Unknown error occurred'}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Network error: ${error.message}</div>`;
+            } finally {
+                // Reset button
+                generateBtn.disabled = false;
+                generateBtn.textContent = 'Generate House Image';
+            }
+        });
+    </script>
+</body>
+</html>
